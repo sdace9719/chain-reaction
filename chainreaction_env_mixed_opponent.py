@@ -166,26 +166,34 @@ class ChainReactionEnvMixedOpponent:
         elif player2_atoms > 0 and player1_atoms == 0: self.game_over = True; self.winner = PLAYER2
 
     def get_random_move(self, player):
-        """Return a random valid move for the specified player."""
-        mask = self.valid_moves_mask(perspective_player=player)
-        valid_indices = np.where(mask)[0]
-        if len(valid_indices) == 0:
+        """Return a random valid move (flat index) for the specified player, using tuple selection like baseline."""
+        valid_coords = []
+        for r in range(self.grid_size):
+            for c in range(self.grid_size):
+                cell = self.grid[r][c]
+                if cell is None or cell[0] == player:
+                    valid_coords.append((r, c)) # Collect valid (r, c) tuples
+        
+        if not valid_coords:
             print(f"Warning: get_random_move called for Player {player} with no valid moves.")
-            return -1 # Indicate failure (should be caught by game over check)
-        return int(np.random.choice(valid_indices))
+            return -1 # Indicate failure
+            
+        # Choose a random tuple
+        chosen_r, chosen_c = random.choice(valid_coords) 
+        
+        # Convert the chosen tuple back to a flat index
+        flat_index = chosen_r * self.grid_size + chosen_c
+        return flat_index
 
     def step(self, action):
         """Execute agent (P1) move, then internal opponent (P2) move using the configured mixed strategy.
+           Uses baseline random logic when strategy is 'random'.
            Returns state after P1 splits (P1 perspective) and reward for P1's turn."""
         if self.game_over: return self.get_state(perspective_player=PLAYER1), 0
-
         player = PLAYER1; opponent = PLAYER2
         r_act, c_act = action // self.grid_size, action % self.grid_size
         cell_act = self.grid[r_act][c_act]
-        if cell_act is not None and cell_act[0] != player:
-             print(f"FATAL ERROR: Player {player} (Agent) provided invalid action {action} on cell ({r_act},{c_act}) owned by Player {cell_act[0]}.")
-             os._exit(1)
-
+        if cell_act is not None and cell_act[0] != player: os._exit(1)
         opponent_atoms_before = sum(c[1] for row in self.grid for c in row if c and c[0] == opponent)
         self._apply_action(action, player)
         self.process_splits()
@@ -193,6 +201,7 @@ class ChainReactionEnvMixedOpponent:
         reward = float(opponent_atoms_before - opponent_atoms_after)
         state_after_player_move = self.get_state(perspective_player=player)
         done_after_player_move = self.game_over
+        # --- End P1 Turn Logic --- 
 
         # --- Internal Opponent's (Player 2) Mixed Strategy Turn ---
         if not done_after_player_move:
@@ -200,18 +209,32 @@ class ChainReactionEnvMixedOpponent:
             if not np.any(opp_valid_mask_np):
                 if not self.game_over: self.game_over = True; self.winner = player; print("Warning: Opponent had no moves...")
             else:
-                # --- Choose strategy based on stored weights --- 
+                # --- Choose strategy based on stored weights ---
                 population = list(self.strategy_weights.keys())
                 weights = list(self.strategy_weights.values())
                 strategy = random.choices(population=population, weights=weights, k=1)[0]
-                # --- End Strategy Choice --- 
+                # --- End Strategy Choice ---
 
                 opp_action = -1 # Default invalid action
 
+                # --- Determine Opponent Action based on Strategy --- 
                 if strategy == "random":
-                    opp_action = self.get_random_move(opponent)
-                else:
-                    # Need model output for sample or argmax
+                    # Use baseline random logic (tuple selection)
+                    valid_coords = []
+                    for r in range(self.grid_size):
+                        for c in range(self.grid_size):
+                            cell = self.grid[r][c]
+                            if cell is None or cell[0] == opponent:
+                                valid_coords.append((r, c))
+                    if valid_coords:
+                        chosen_r, chosen_c = random.choice(valid_coords)
+                        opp_action = chosen_r * self.grid_size + chosen_c # Convert to flat index
+                    else:
+                        # Should have been caught by np.any(opp_valid_mask_np) check above
+                        print(f"Warning: Strategy 'random' found no valid_coords despite mask check passing.")
+
+                elif strategy == "sample" or strategy == "argmax":
+                    # Use the loaded PPO model
                     opp_obs_np = self.get_state(perspective_player=opponent)
                     opp_obs_tensor = torch.tensor(opp_obs_np, dtype=torch.float32).unsqueeze(0).to(self.opponent_device)
                     opp_valid_mask_torch = torch.tensor(opp_valid_mask_np, dtype=torch.bool, device=self.opponent_device)
@@ -233,23 +256,31 @@ class ChainReactionEnvMixedOpponent:
                         if strategy == "sample":
                             action_dist = Categorical(logits=logits_squeezed)
                             opp_action = action_dist.sample().item()
-                        elif strategy == "argmax":
+                        else: # strategy == "argmax"
                             opp_action = torch.argmax(logits_squeezed).item()
+                # --- End Action Determination ---
 
-                # Apply the chosen opponent action
+                # --- Apply the chosen opponent action --- 
                 if opp_action != -1:
-                     self._apply_action(opp_action, opponent)
-                     self.process_splits()
+                     # Apply using the flat index action
+                     self._apply_action(opp_action, opponent) 
+                     # Process splits resulting from opponent's move
+                     self.process_splits() 
                 else:
-                     # This case should not happen if valid moves exist, but handle defensively
-                     print(f"Warning: Opponent strategy '{strategy}' failed to produce a valid action.")
-                     # Decide behavior: maybe let P1 win? For now, just proceed (game might end naturally)
+                     print(f"Warning: Opponent strategy '{strategy}' failed to produce a valid action index.")
+                     # If no action was determined (e.g., random found no coords unexpectedly),
+                     # the game state doesn't change further this turn.
                      pass
 
         return state_after_player_move, reward
 
     def get_winner(self):
-        return self.winner
+        """Return 0 if PLAYER1 won, 1 if PLAYER2 won, else None before game end."""
+        # Reverted to baseline logic (0/1 index)
+        if not self.game_over:
+            return None
+        # self.winner stores PLAYER1 (1) or PLAYER2 (2)
+        return 0 if self.winner == PLAYER1 else 1
 
 # --- Helper Function for Module API --- 
 def _get_effective_strategy_weights(provided_weights):

@@ -273,8 +273,12 @@ class ChainReactionEnv:
 
 
     def get_winner(self):
-        """Return PLAYER1 or PLAYER2 if game is over and won, else None."""
-        return self.winner # Return player ID directly
+        """Return 0 if PLAYER1 won, 1 if PLAYER2 won, else None before game end."""
+        # Reverted to baseline logic (0/1 index)
+        if not self.game_over:
+            return None
+        # self.winner stores PLAYER1 (1) or PLAYER2 (2)
+        return 0 if self.winner == PLAYER1 else 1
 
 # --- Module-level API (Optimized Loading) ---
 _env = None

@@ -11,30 +11,30 @@ import chainreaction_env as randomgame
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-#game.start_new_game(opponent_model_path="PPOnet/chain_reaction_D.pth",opponent_device=device,opponent_strategy_weights={"sample": 0.5, "random": 0.5})
-randomgame.start_new_game()
+game.start_new_game(opponent_model_path="PPOnet/chain_reaction_D.pth",opponent_device=device,opponent_strategy_weights={"random": 1.0})
+#randomgame.start_new_game()
 games = 0
 done = False
 ep_steps = 0
-net = model.PPOGridNet(grid_size=5,load_weights="PPOnet/chain_reaction_A_against_ai_3.pth",eval_mode=True)
+net = model.PPOGridNet(grid_size=5,load_weights="PPOnet/chain_reaction_A_against_ai.pth",eval_mode=True)
 wins = 0
 while not done:
-    game_done = randomgame.is_done()
+    game_done = game.is_done()
     if game_done:
         games += 1
         #print(f"Game {games} moves: {ep_steps}")
         ep_steps = 0
-        if randomgame.get_winner() == 0:
+        if game.get_winner() == 0:
             wins += 1
-        randomgame.start_new_game()  
-    obs = randomgame.get_state()
-    m = randomgame.valid_moves_mask()
+        game.start_new_game()  
+    obs = game.get_state()
+    m = game.valid_moves_mask()
     valid_mask = torch.tensor(m, dtype=torch.bool, device=device)
     with torch.no_grad():
         logits, value = net.forward(torch.tensor(obs,dtype=torch.float32))
         masked_logits = logits.masked_fill(~valid_mask, -1e9)
         action = masked_logits.argmax(dim=-1)
-    randomgame.step(action)
+    game.step(action)
     ep_steps += 1
     if games >= 500:
         done = True

@@ -246,7 +246,7 @@ def start_training(opp,entropy_decay):
         value_loss = 0
 
         if entropy_decay:
-            entropy_coeff = entropy_decay_schedule(update,2000,entropy_coeff,entropy_coeff/10)
+            entropy_coeff = entropy_decay_schedule(update,2000,start=0.05,final=0.001)
 
         scheduler.step() # to prevent skipping first lr in optimizer
         for n in range(n_epochs):
