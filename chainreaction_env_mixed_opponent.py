@@ -11,7 +11,7 @@ PLAYER1 = 1
 PLAYER2 = 2
 
 # Define default strategy weights here for clarity
-DEFAULT_STRATEGY_WEIGHTS = {'random': 0.2, 'sample': 0.8, 'argmax': 0.2}
+DEFAULT_STRATEGY_WEIGHTS = {'random': 0.0, 'sample': 0.7, 'argmax': 0.3}
 VALID_STRATEGIES = list(DEFAULT_STRATEGY_WEIGHTS.keys())
 
 class ChainReactionEnvMixedOpponent:

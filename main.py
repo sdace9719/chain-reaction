@@ -10,7 +10,7 @@ hyperparameters = [
     "n_epochs": 6,
     "batch_size": 512,
     "entropy": 0.05,
-    "name": 'A_against_ai',
+    "name": 'against_ai3',
     "Dynamic_rewards": False,
     "lr": "default",
     "opp": "PPOnet/chain_reaction_A_against_ai.pth",
@@ -18,8 +18,9 @@ hyperparameters = [
     "freeze_conv": False,
     "entropy_decay": True,
     "deep": False,
-    "wide": False
-    }  
+    "wide": False,
+    "updates": 3000
+    }    
     ]
 
 def main():
@@ -42,7 +43,8 @@ def main():
                                                          h['wide'],
                                                          h['opp'],
                                                          h['entropy_decay'],
-                                                         h['self']))
+                                                         h['self'],
+                                                         h['updates']))
         p.start()
         processes.append(p)
 

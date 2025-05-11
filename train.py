@@ -31,6 +31,7 @@ gamma = 0.99                # Discount factor
 gae_lambda = 0.95           # GAE smoothing factor
 clip_epsilon = 0.2          # PPO clipping threshold
 entropy_coeff = 0.05
+entropy_start = 0.05
 
 
 net = ''
@@ -98,17 +99,20 @@ def make_minibatches(buffer, returns, advantages, batch_size):
 # Training Loop
 
 def start_training(opp,entropy_decay):
+    import chainreaction_env_mixed_opponent as aigame
+    import chainreaction_env as randomgame
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     game = None
     if opp:
-        import chainreaction_env_mixed_opponent as game
+        game = aigame
         game.start_new_game(opponent_model_path=opp,opponent_device=device)
-        import chainreaction_env as randomgame
     else:
-        import chainreaction_env as game
+        game = randomgame
         game.start_new_game()
     global entropy_coeff
     model_loadeded_recently = True
+    change_update = 0
     for update in range(total_updates):
         buffer = []
         rw = 0
@@ -119,16 +123,10 @@ def start_training(opp,entropy_decay):
         # check win rate against random opponent
         validation_games = 0
         randomwins = 0
+        validation_reward = 0
         if update%50==0:
-            imported = False
-            try:
-                randomgame.start_new_game()
-                print("Random game found")
-                imported = True
-            except NameError:
-                print("Random game not found")
-                imported = False
-            while validation_games < 500 and imported:
+            randomgame.start_new_game()
+            while validation_games < 500:
                 r_obs = randomgame.get_state()
                 r_m = randomgame.valid_moves_mask()
                 valid_mask = torch.tensor(r_m, dtype=torch.bool, device=device)
@@ -136,19 +134,22 @@ def start_training(opp,entropy_decay):
                     logits, value = net.forward(torch.tensor(r_obs,dtype=torch.float32))
                     masked_logits = logits.masked_fill(~valid_mask, -1e9)
                     action = masked_logits.argmax(dim=-1)
-                _ , _ = randomgame.step(action.item())
+                _ , rew = randomgame.step(action.item())
                 done = randomgame.is_done()
                 if done and randomgame.get_winner() == 0:
                     randomwins+=1
+                    rw+=150
                 if done:
+                    rw-=150
                     validation_games+=1
                     randomgame.start_new_game()
+                validation_reward += rew
             win_rate = randomwins/validation_games
             writer.add_scalar('Game/Win_Rate', win_rate, update, walltime=time.time())
-                
+            writer.add_scalar('Game/Avg_Reward', float(validation_reward)/float(validation_games), update, walltime=time.time())
             
 
-        if update % 100 == 0 and update > 0:
+        if update == change_update and update > 0:
             model_loadeded_recently = False
         # collect experience in this loop for n_steps
         for n in range(n_steps):
@@ -164,9 +165,9 @@ def start_training(opp,entropy_decay):
             next_obs, rw = game.step(action.item())
             done = game.is_done()
             if done and game.get_winner() == 0:
-                rw+=200
+                rw+=150
             if done and game.get_winner() == 1:
-                rw-=100
+                rw-=150
             if n > 900 and dynamic_rewards:
                 rw*=5
             buffer.append({
@@ -181,17 +182,28 @@ def start_training(opp,entropy_decay):
             if done:
                 all_game_rewards.append(ep_reweard)
                 ep_reweard = 0
-                # we will sample a model from the last M checkpoints if we decide to use older opponent model, otherwise we will use the latest model
+                #we will sample a model from the last M checkpoints if we decide to use older opponent model, otherwise we will use the latest model
                 if not model_loadeded_recently:
                     print(f"Loading model at update {update}th update")
-                    select_model = r.choices(population=["best","older"],weights=[0.8,0.2])[0]
+                    select_model = r.choices(population=["best","older","random"],weights=[0.65,0.2,0.15])[0]
                     latest_checkpoint_index = int(update/100)-1
-                    if select_model != "best":
+                    print(f"selected model: {select_model}")
+                    if select_model == "random":
+                        game = randomgame
+                        change_update = update + 100
+                        print(f"next change scheduled at {change_update}th update")
+                    elif select_model == "best":
+                        game = aigame
+                        change_update = update + 200
+                        print(f"next change scheduled at {change_update}th update")
                         oldest_checkpoint_index = max(0,latest_checkpoint_index-M)
                         select_checkpoint = r.randint(oldest_checkpoint_index,latest_checkpoint_index)
                         path = f"{save_path}_{select_checkpoint}.pth"
                         game.start_new_game(opponent_model_path=path,opponent_device=device)
                     else:
+                        change_update = update + 100
+                        print(f"next change scheduled at {change_update}th update")
+                        game = aigame
                         path = f"{save_path}_{latest_checkpoint_index}.pth"
                         game.start_new_game(opponent_model_path=path,opponent_device=device)
                     model_loadeded_recently = True
@@ -204,10 +216,10 @@ def start_training(opp,entropy_decay):
         #win_rate = wins / (n_steps / 25)  # Assuming average game length of 25 steps
         
         # Log metrics to TensorBoard
-        if n > 900:
-            writer.add_scalar('Rewards/Avg_Reward', float(avg_game_reward)/float(5), update, walltime=time.time())
+        if n > 900 and dynamic_rewards:
+            writer.add_scalar('Training/Avg_Reward', float(avg_game_reward)/float(5), update, walltime=time.time())
         else:
-            writer.add_scalar('Rewards/Avg_Reward', avg_game_reward, update, walltime=time.time())
+            writer.add_scalar('Training/Avg_Reward', avg_game_reward, update, walltime=time.time())
         #writer.add_scalar('Game/Win_Rate', win_rate, update, walltime=time.time())
         writer.add_scalar('Training/Learning_Rate', optimizer.param_groups[0]['lr'], update, walltime=time.time())
         writer.flush()
@@ -246,7 +258,7 @@ def start_training(opp,entropy_decay):
         value_loss = 0
 
         if entropy_decay:
-            entropy_coeff = entropy_decay_schedule(update,2000,start=0.05,final=0.001)
+            entropy_coeff = entropy_decay_schedule(update,total_updates,start=entropy_start,final=0.001)
 
         scheduler.step() # to prevent skipping first lr in optimizer
         for n in range(n_epochs):
@@ -311,8 +323,8 @@ def start_training(opp,entropy_decay):
     writer.close()
     torch.save(net.state_dict(),f"{save_path}.pth")
     
-def start_new_training(steps,epochs,batch,entropy,name,dynamic_rw,lr,deep,wide,opp,entropy_decay,self):
-    global n_steps, n_epochs, batch_size, gamma, gae_lambda, clip_epsilon, entropy_coeff, log_dir, writer, device, scheduler, dynamic_rewards, save_path, net, optimizer
+def start_new_training(steps,epochs,batch,entropy,name,dynamic_rw,lr,deep,wide,opp,entropy_decay,self,updates):
+    global n_steps, n_epochs, batch_size, gamma, gae_lambda, clip_epsilon, entropy_coeff, log_dir, writer, device, scheduler, dynamic_rewards, save_path, net, optimizer, entropy_start, total_updates
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     n_steps = steps              # Total steps to collect per PPO update
     n_epochs = epochs                # Number of times to train on the collected data
@@ -322,6 +334,8 @@ def start_new_training(steps,epochs,batch,entropy,name,dynamic_rw,lr,deep,wide,o
     clip_epsilon = 0.2          # PPO clipping threshold
     dynamic_rewards = dynamic_rw
     entropy_coeff = entropy
+    entropy_start = entropy
+    total_updates = updates
     log_dir = f"runs/chain_reaction_{name}"
     save_path = f"PPOnet/chain_reaction_{name}"
     writer = SummaryWriter(log_dir=log_dir, flush_secs=1)
@@ -335,7 +349,7 @@ def start_new_training(steps,epochs,batch,entropy,name,dynamic_rw,lr,deep,wide,o
 
     optimizer = torch.optim.Adam(net.parameters(), lr=2e-4)
     scheduler_map = {
-    "default": torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=2000, eta_min=1e-5),
+    "default": torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=updates, eta_min=1e-5),
     "CosineWarmRestarts": torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer,T_0=1000),
     "Linear":  torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.14, total_iters=2000),
     "exp": torch.optim.lr_scheduler.LambdaLR(optimizer,flattened_exponential_decay)
