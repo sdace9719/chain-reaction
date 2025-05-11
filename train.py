@@ -201,7 +201,7 @@ def start_training(opp,entropy_decay):
                         path = f"{save_path}_{select_checkpoint}.pth"
                         game.start_new_game(opponent_model_path=path,opponent_device=device)
                     else:
-                        change_update = update + 100
+                        change_update = update + 200
                         print(f"next change scheduled at {change_update}th update")
                         game = aigame
                         path = f"{save_path}_{latest_checkpoint_index}.pth"
