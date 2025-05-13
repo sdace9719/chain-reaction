@@ -16,7 +16,7 @@ game.start_new_game(opponent_model_path="PPOnet/chain_reaction_D.pth",opponent_d
 games = 0
 done = False
 ep_steps = 0
-net = model.PPOGridNet(grid_size=5,load_weights="PPOnet/chain_reaction_A_against_ai.pth",eval_mode=True)
+net = model.PPOGridNet(grid_size=5,load_weights="PPOnet/chain_reaction_against_ai4.pth",eval_mode=True)
 wins = 0
 while not done:
     game_done = game.is_done()

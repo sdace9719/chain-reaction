@@ -1,4 +1,7 @@
+import json
 import sys
+
+import numpy as np
 from train import start_new_training
 #import threading
 import multiprocessing as mp
@@ -9,21 +12,64 @@ hyperparameters = [
     "n_steps": 4096,
     "n_epochs": 6,
     "batch_size": 512,
-    "entropy": 0.05,
-    "name": 'against_ai3',
+    "entropy": 0.01,
+    "name": 'A',
     "Dynamic_rewards": False,
     "lr": "default",
-    "opp": "PPOnet/chain_reaction_A_against_ai.pth",
-    "self": "PPOnet/chain_reaction_A_against_ai.pth",
+    "opp": None,
+    "self": None,
     "freeze_conv": False,
-    "entropy_decay": True,
+    "entropy_decay": False,
     "deep": False,
     "wide": False,
-    "updates": 3000
-    }    
+    "updates": 2000
+    },
+    {
+    "n_steps": 4096,
+    "n_epochs": 6,
+    "batch_size": 512,
+    "entropy": 0.01,
+    "name": 'B',
+    "Dynamic_rewards": False,
+    "lr": "default",
+    "opp": None,
+    "self": None,
+    "freeze_conv": False,
+    "entropy_decay": False,
+    "deep": True,
+    "wide": False,
+    "updates": 2000
+    },
+    {
+    "n_steps": 4096,
+    "n_epochs": 6,
+    "batch_size": 512,
+    "entropy": 0.01,
+    "name": 'C',
+    "Dynamic_rewards": False,
+    "lr": "default",
+    "opp": None,
+    "self": None,
+    "freeze_conv": False,
+    "entropy_decay": False,
+    "deep": True,
+    "wide": True,
+    "updates": 2000
+    }       
     ]
 
+def shuffle_seeds():
+    f = open("training_seeds","r")
+    training_seeds = json.loads(f.read())
+    f.close()
+    np.random.shuffle(training_seeds)
+    f = open("training_seeds_shuffled","w")
+    f.write(json.dumps(training_seeds))
+    f.close()
+
 def main():
+    # generate shuffled set of training seeds
+    shuffle_seeds()
     # must be before any CUDA or Pool usage
     mp.set_start_method('spawn', force=True)
     ctx = mp.get_context('spawn')

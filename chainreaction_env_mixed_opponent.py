@@ -212,7 +212,7 @@ class ChainReactionEnvMixedOpponent:
                 # --- Choose strategy based on stored weights ---
                 population = list(self.strategy_weights.keys())
                 weights = list(self.strategy_weights.values())
-                strategy = random.choices(population=population, weights=weights, k=1)[0]
+                strategy = np.random.choice(population, p=weights)
                 # --- End Strategy Choice ---
 
                 opp_action = -1 # Default invalid action

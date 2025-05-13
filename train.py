@@ -1,3 +1,5 @@
+from itertools import cycle
+import json
 import os
 import random as r
 import sys
@@ -93,14 +95,29 @@ def make_minibatches(buffer, returns, advantages, batch_size):
     for i in range(0, len(buffer), batch_size):
         yield buffer[i:i+batch_size], returns[i:i+batch_size], advantages[i:i+batch_size]
 
+    
+def load_validation_seeds():
+    f = open("validation_seeds","r")
+    validation_seeds = json.loads(f.read())
+    f.close()
+    return validation_seeds
 
-
+def load_training_seeds():
+    f = open("training_seeds_shuffled","r")
+    training_seeds = json.loads(f.read())
+    f.close()
+    return training_seeds
+    
 
 # Training Loop
 
 def start_training(opp,entropy_decay):
     import chainreaction_env_mixed_opponent as aigame
     import chainreaction_env as randomgame
+
+    validation_seeds = load_validation_seeds()
+    training_seeds = cycle(load_training_seeds())
+
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     game = None
@@ -112,7 +129,7 @@ def start_training(opp,entropy_decay):
         game.start_new_game()
     global entropy_coeff
     model_loadeded_recently = True
-    change_update = 0
+    change_update = 200
     for update in range(total_updates):
         buffer = []
         rw = 0
@@ -125,6 +142,7 @@ def start_training(opp,entropy_decay):
         randomwins = 0
         validation_reward = 0
         if update%50==0:
+            r.seed(validation_seeds[0])
             randomgame.start_new_game()
             while validation_games < 500:
                 r_obs = randomgame.get_state()
@@ -142,6 +160,8 @@ def start_training(opp,entropy_decay):
                 if done:
                     rw-=150
                     validation_games+=1
+                    if validation_games < 500:
+                        r.seed(validation_seeds[validation_games])
                     randomgame.start_new_game()
                 validation_reward += rew
             win_rate = randomwins/validation_games
@@ -149,7 +169,7 @@ def start_training(opp,entropy_decay):
             writer.add_scalar('Game/Avg_Reward', float(validation_reward)/float(validation_games), update, walltime=time.time())
             
 
-        if update == change_update and update > 0:
+        if update == change_update:
             model_loadeded_recently = False
         # collect experience in this loop for n_steps
         for n in range(n_steps):
@@ -183,16 +203,16 @@ def start_training(opp,entropy_decay):
                 all_game_rewards.append(ep_reweard)
                 ep_reweard = 0
                 #we will sample a model from the last M checkpoints if we decide to use older opponent model, otherwise we will use the latest model
-                if not model_loadeded_recently:
-                    print(f"Loading model at update {update}th update")
-                    select_model = r.choices(population=["best","older","random"],weights=[0.65,0.2,0.15])[0]
+                if opp and not model_loadeded_recently:
+                    print(f"Loading model at {update}th update")
+                    select_model = r.choices(population=["best","older","random"],weights=[0.55,0.2,0.25])[0]
                     latest_checkpoint_index = int(update/100)-1
                     print(f"selected model: {select_model}")
                     if select_model == "random":
                         game = randomgame
                         change_update = update + 100
                         print(f"next change scheduled at {change_update}th update")
-                    elif select_model == "best":
+                    elif select_model == "older":
                         game = aigame
                         change_update = update + 200
                         print(f"next change scheduled at {change_update}th update")
@@ -208,6 +228,9 @@ def start_training(opp,entropy_decay):
                         game.start_new_game(opponent_model_path=path,opponent_device=device)
                     model_loadeded_recently = True
                 else:
+                    if game == randomgame:
+                        print(f"seeding random game with {next(training_seeds)}")
+                        r.seed(next(training_seeds))
                     game.start_new_game()
 
         avg_game_reward = float(sum(all_game_rewards)) / float(len(all_game_rewards))
@@ -260,7 +283,6 @@ def start_training(opp,entropy_decay):
         if entropy_decay:
             entropy_coeff = entropy_decay_schedule(update,total_updates,start=entropy_start,final=0.001)
 
-        scheduler.step() # to prevent skipping first lr in optimizer
         for n in range(n_epochs):
             for batch in make_minibatches(buffer, returns, advantages, batch_size):
                 buffer_batch = split_buffer_batch(batch[0])
@@ -319,6 +341,7 @@ def start_training(opp,entropy_decay):
         writer.add_scalar('Training/Clip_Fraction', clip_fraction.item(), update, walltime=time.time())
         writer.add_scalar('Training/Approx_KL', approx_kl.item(), update, walltime=time.time())
         writer.flush()
+        scheduler.step() # to prevent skipping first lr in optimizer
 
     writer.close()
     torch.save(net.state_dict(),f"{save_path}.pth")
