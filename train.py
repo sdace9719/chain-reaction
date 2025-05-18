@@ -172,6 +172,7 @@ def start_training(opp,entropy_decay):
         if update == change_update:
             model_loadeded_recently = False
         # collect experience in this loop for n_steps
+        r.seed(next(training_seeds))
         for n in range(n_steps):
             obs = game.get_state()
             m = game.valid_moves_mask()
@@ -229,7 +230,7 @@ def start_training(opp,entropy_decay):
                     model_loadeded_recently = True
                 else:
                     if game == randomgame:
-                        print(f"seeding random game with {next(training_seeds)}")
+                        #print(f"seeding random game with {next(training_seeds)}")
                         r.seed(next(training_seeds))
                     game.start_new_game()
 
@@ -370,7 +371,7 @@ def start_new_training(steps,epochs,batch,entropy,name,dynamic_rw,lr,deep,wide,o
     else:
         net = model.PPOGridNet(grid_size=5,load_weights=self)
 
-    optimizer = torch.optim.Adam(net.parameters(), lr=2e-4)
+    optimizer = torch.optim.Adam(net.parameters(), lr=1e-4)
     scheduler_map = {
     "default": torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=updates, eta_min=1e-5),
     "CosineWarmRestarts": torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer,T_0=1000),

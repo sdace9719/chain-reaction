@@ -11,12 +11,14 @@ import chainreaction_env as randomgame
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-game.start_new_game(opponent_model_path="PPOnet/chain_reaction_D.pth",opponent_device=device,opponent_strategy_weights={"random": 1.0})
-#randomgame.start_new_game()
+#game.start_new_game(opponent_model_path="PPOnet/chain_reaction_D.pth",opponent_device=device,opponent_strategy_weights={"random": 1.0})
+game = randomgame
+game.start_new_game()
 games = 0
 done = False
 ep_steps = 0
-net = model.PPOGridNet(grid_size=5,load_weights="PPOnet/chain_reaction_against_ai4.pth",eval_mode=True)
+net = model.PPOGridNet(grid_size=5,load_weights="PPOnet/chain_reaction_baseline2.pth",eval_mode=True)
+#net = model.PPOGridNet_deep_fc(grid_size=5,load_weights="PPOnet/chain_reaction_baseline.pth",eval_mode=True)
 wins = 0
 while not done:
     game_done = game.is_done()

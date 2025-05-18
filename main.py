@@ -12,50 +12,18 @@ hyperparameters = [
     "n_steps": 4096,
     "n_epochs": 6,
     "batch_size": 512,
-    "entropy": 0.01,
-    "name": 'A',
+    "entropy": 0.04,
+    "name": 'aganist_ai',
     "Dynamic_rewards": False,
     "lr": "default",
-    "opp": None,
-    "self": None,
+    "opp": "PPOnet/chain_reaction_baseline2.pth",
+    "self": "PPOnet/chain_reaction_baseline2.pth",
     "freeze_conv": False,
-    "entropy_decay": False,
+    "entropy_decay": True,
     "deep": False,
     "wide": False,
-    "updates": 2000
-    },
-    {
-    "n_steps": 4096,
-    "n_epochs": 6,
-    "batch_size": 512,
-    "entropy": 0.01,
-    "name": 'B',
-    "Dynamic_rewards": False,
-    "lr": "default",
-    "opp": None,
-    "self": None,
-    "freeze_conv": False,
-    "entropy_decay": False,
-    "deep": True,
-    "wide": False,
-    "updates": 2000
-    },
-    {
-    "n_steps": 4096,
-    "n_epochs": 6,
-    "batch_size": 512,
-    "entropy": 0.01,
-    "name": 'C',
-    "Dynamic_rewards": False,
-    "lr": "default",
-    "opp": None,
-    "self": None,
-    "freeze_conv": False,
-    "entropy_decay": False,
-    "deep": True,
-    "wide": True,
-    "updates": 2000
-    }       
+    "updates": 6000
+    } 
     ]
 
 def shuffle_seeds():
