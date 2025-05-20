@@ -206,7 +206,7 @@ def start_training(opp,entropy_decay):
                 #we will sample a model from the last M checkpoints if we decide to use older opponent model, otherwise we will use the latest model
                 if opp and not model_loadeded_recently:
                     print(f"Loading model at {update}th update")
-                    select_model = r.choices(population=["best","older","random"],weights=[0.55,0.2,0.25])[0]
+                    select_model = r.choices(population=["best","older","random"],weights=[0.0,0.75,0.25])[0]
                     latest_checkpoint_index = int(update/100)-1
                     print(f"selected model: {select_model}")
                     if select_model == "random":
@@ -215,14 +215,14 @@ def start_training(opp,entropy_decay):
                         print(f"next change scheduled at {change_update}th update")
                     elif select_model == "older":
                         game = aigame
-                        change_update = update + 200
+                        change_update = update + 500
                         print(f"next change scheduled at {change_update}th update")
-                        oldest_checkpoint_index = max(0,latest_checkpoint_index-M)
+                        oldest_checkpoint_index = max(0,latest_checkpoint_index-M-1)
                         select_checkpoint = r.randint(oldest_checkpoint_index,latest_checkpoint_index)
                         path = f"{save_path}_{select_checkpoint}.pth"
                         game.start_new_game(opponent_model_path=path,opponent_device=device)
                     else:
-                        change_update = update + 200
+                        change_update = update + 500
                         print(f"next change scheduled at {change_update}th update")
                         game = aigame
                         path = f"{save_path}_{latest_checkpoint_index}.pth"
