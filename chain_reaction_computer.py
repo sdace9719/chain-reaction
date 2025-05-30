@@ -16,7 +16,7 @@ DARK_GRAY = (50, 50, 50)
 GRID_COLOR = (70, 90, 110)  # Dark blue-gray that looks good on black
 
 # Game settings
-GRID_SIZE = 9
+GRID_SIZE = 4
 CELL_SIZE = 60
 MARGIN = 2
 TOP_MARGIN = 40  # Space at the top for turn indicator

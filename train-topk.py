@@ -186,19 +186,16 @@ def start_training(opp,entropy_decay):
                     oldest_checkpoint_index = max(0,latest_checkpoint_index-M-1)
                     checkpoints = [i for i in range(oldest_checkpoint_index,latest_checkpoint_index)]
                     model_paths = { f"model_{i}" :f"{save_path}_{checkpoints[i]}.pth" for i in checkpoints}
-                    torch.save(net.state_dict(),f"{save_path}_temp.pth")
-                    model_paths["latest"] = f"{save_path}_temp.pth"
+                    model_paths["latest"] = f"{save_path}.pth"
                     print(f"Model paths: {model_paths}")
                     model_elo_ratings = calculate_elo(model_paths=model_paths,policy_elo_ratings=policy_elo_ratings)
                     model_elo_ratings = model_elo_ratings | policy_elo_ratings
                     #print(model_elo_ratings)
-                    lower_theshold = model_elo_ratings["latest"] - 300
-                    higher_theshold = model_elo_ratings["latest"] + 300
-                    good_models = {name: rating for name, rating in model_elo_ratings.items() if lower_theshold < rating < higher_theshold}
-                    del good_models['latest']
-                    print(f"Good models: {good_models}")
-                    if len(good_models) > 0:
-                        selected_model = model_selector.choice(list(good_models.keys()))
+                    top5_keys = sorted(model_elo_ratings, key=model_elo_ratings.get, reverse=True)[:5]
+                    top5_models = {k: model_elo_ratings[k] for k in top5_keys if k in model_elo_ratings}
+                    print(f"Good models: {top5_models}")
+                    if len(top5_keys) > 0:
+                        selected_model = model_selector.choice(top5_keys)
                         print(f"Selected model: {selected_model}")
                         if selected_model in policy_elo_ratings.keys():
                             game.start_new_game(opponent_policy=selected_model,opponent_first=opponent_first)
@@ -207,7 +204,7 @@ def start_training(opp,entropy_decay):
                     else:
                         print("Error: No good models found")
                         os._exit(0)
-                    change_update = update + 50
+                    change_update = update + 20
                     model_loadeded_recently = True
                     print(f"Next change scheduled at {change_update}th update")
                 game.start_new_game(opponent_first=opponent_first)
@@ -360,7 +357,7 @@ def start_training(opp,entropy_decay):
     writer.close()
     torch.save(net.state_dict(),f"{save_path}.pth")
     
-def start_new_training(steps,epochs,batch,entropy,name,lr,self,deep,wide,opp,entropy_decay,updates):
+def start_new_training(steps,epochs,batch,entropy,name,lr,deep,wide,opp,entropy_decay,updates):
     global n_steps, n_epochs, batch_size, gamma, gae_lambda, clip_epsilon, entropy_coeff, log_dir, writer, device, scheduler, save_path, net, optimizer, entropy_start, total_updates
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     n_steps = steps              # Total steps to collect per PPO update
@@ -380,14 +377,12 @@ def start_new_training(steps,epochs,batch,entropy,name,lr,self,deep,wide,opp,ent
         net = model.PPOGridNet_deep_wide_fc(grid_size=5,load_weights=f"{save_path}.pth")
     elif deep:
         net = model.PPOGridNet_deep_fc(grid_size=5,load_weights=f"{save_path}.pth")
-    elif self:
-        net = model.PPOGridNet(grid_size=5,load_weights=f"{self}.pth")
     else:
-        net = model.PPOGridNet(grid_size=5)
+        net = model.PPOGridNet(grid_size=5,load_weights=f"{save_path}.pth")
 
-    optimizer = torch.optim.Adam(net.parameters(), lr=1e-4)
+    optimizer = torch.optim.Adam(net.parameters(), lr=1e-5)
     scheduler_map = {
-    "default": torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=updates, eta_min=1e-5),
+    "default": torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=updates, eta_min=1e-6),
     "CosineWarmRestarts": torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer,T_0=1000),
     "Linear":  torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.14, total_iters=2000),
     "exp": torch.optim.lr_scheduler.LambdaLR(optimizer,flattened_exponential_decay)

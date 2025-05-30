@@ -10,16 +10,15 @@ import multiprocessing as mp
 hyperparameters = [
     {
     "n_steps": 4096,
-    "n_epochs": 6,
+    "n_epochs": 3,
     "batch_size": 512,
-    "entropy": 0.04,
-    "name": 'aganist_ai',
-    "Dynamic_rewards": False,
+    "entropy": 0.01,
+    "name": 'against_policies',
     "lr": "default",
-    "opp": "PPOnet/chain_reaction_baseline2.pth",
-    "self": "PPOnet/chain_reaction_baseline2.pth",
+    "opp": True,
+    "self": "PPOnet/chain_reaction_A",
     "freeze_conv": False,
-    "entropy_decay": True,
+    "entropy_decay": False,
     "deep": False,
     "wide": False,
     "updates": 6000
@@ -51,13 +50,12 @@ def main():
                                                          h["batch_size"],
                                                          h["entropy"],
                                                          h["name"],
-                                                         h['Dynamic_rewards'],
                                                          h["lr"],
+                                                         h['self'],
                                                          h['deep'],
                                                          h['wide'],
                                                          h['opp'],
                                                          h['entropy_decay'],
-                                                         h['self'],
                                                          h['updates']))
         p.start()
         processes.append(p)
