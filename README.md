@@ -4,7 +4,7 @@ A simple implementation of the Chain Reaction game using Python and Pygame.
 
 ## Game Rules
 
-- The game is played on a 9x9 grid.
+- The game is played on a nxn grid.
 - It is a 2-player turn-based game.
 - In each turn, a player selects a square to place an atom.
 - When a square is selected, the number of atoms in that square increases by one.
@@ -44,4 +44,8 @@ python chain_reaction.py
 - Player 1's atoms are shown in red
 - Player 2's atoms are shown in blue
 - The current player's turn is displayed at the top of the screen
-- The number in each cell represents the number of atoms 
+- The number in each cell represents the number of atoms
+
+## Training
+
+Please refer Benchmark.md for training outcomes.
