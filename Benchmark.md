@@ -66,10 +66,3 @@ The model demonstrates strong performance across different opponent types:
 
 
 The model was trained on a 5x5 grid but the convolutional weights can be reused for larger grid sizes, making it adaptable to different game configurations.
-
-## Future Work
-
-- Extend training to larger grid sizes
-- Implement curriculum learning for more complex scenarios
-- Explore ensemble methods for improved performance
-- Investigate transfer learning to other grid-based games 
