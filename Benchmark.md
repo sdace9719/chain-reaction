@@ -2,7 +2,7 @@
 
 ## Model Architecture
 
-The model (PPOGridNet) is a deep neural network specifically designed for the Chain Reaction game. It combines convolutional layers for spatial feature extraction with fully connected layers for policy and value prediction. The architecture is grid-size independent, allowing the convolutional weights to be reused for larger grid sizes.
+The model (PPOGridNet) is a deep neural network specifically designed for the Chain Reaction game. It combines convolutional layers for spatial feature extraction with fully connected layers for policy and value prediction.
 
 ```mermaid
 graph TD
