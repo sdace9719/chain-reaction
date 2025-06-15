@@ -10,18 +10,18 @@ import multiprocessing as mp
 hyperparameters = [
     {
     "n_steps": 4096,
-    "n_epochs": 3,
+    "n_epochs": 4,
     "batch_size": 512,
-    "entropy": 0.01,
-    "name": 'against_policies',
+    "entropy": 0.02,
+    "name": 'against_policies4',
     "lr": "default",
     "opp": True,
-    "self": "PPOnet/chain_reaction_A",
+    "self": "PPOnet/chain_reaction_against_policies3_612",
     "freeze_conv": False,
     "entropy_decay": False,
     "deep": False,
     "wide": False,
-    "updates": 6000
+    "updates": 15000
     } 
     ]
 

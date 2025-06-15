@@ -3,3 +3,4 @@ PPOnet/
 tensorboard_logs/
 __pycache__/
 token
+*bkp

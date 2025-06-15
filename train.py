@@ -1,8 +1,6 @@
-from itertools import cycle
 import json
 import os
 import random as r
-import sys
 import numpy as np
 import torch
 import model
@@ -114,7 +112,8 @@ policy_elo_ratings = {'critical': 1156.4470606494483,
                       'corner': 1205.3490512553622, 
                       'aggressive': 1079.5573239231255, 
                       'random': 1242.4150647233662, 
-                      'build': 1135.074759487168}
+                      'build': 1135.074759487168,
+                      'gemini': 1500.0}
     
 
 # Training Loop
@@ -126,10 +125,13 @@ def start_training(opp,entropy_decay):
     game = ChainReactionHeadless()
 
     model_selector = r.Random()
+    strategy_selector = r.Random()
+    policy_selector = r.Random()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     game.start_new_game(opponent_policy="random")
     model_loadeded_recently = False
+    global_top5_models = {}
     change_update = 0
     for update in range(total_updates):
         buffer = []
@@ -181,33 +183,43 @@ def start_training(opp,entropy_decay):
                 opponent_first = not opponent_first
                 #we will sample a model from the last M checkpoints if we decide to use older opponent model, otherwise we will use the latest model
                 if opp and not model_loadeded_recently:
-                    print(f"Loading model at {update}th update")
-                    latest_checkpoint_index = int(update/100)
-                    oldest_checkpoint_index = max(0,latest_checkpoint_index-M-1)
-                    checkpoints = [i for i in range(oldest_checkpoint_index,latest_checkpoint_index)]
-                    model_paths = { f"model_{i}" :f"{save_path}_{checkpoints[i]}.pth" for i in checkpoints}
-                    torch.save(net.state_dict(),f"{save_path}_temp.pth")
-                    model_paths["latest"] = f"{save_path}_temp.pth"
-                    print(f"Model paths: {model_paths}")
-                    model_elo_ratings = calculate_elo(model_paths=model_paths,policy_elo_ratings=policy_elo_ratings)
-                    model_elo_ratings = model_elo_ratings | policy_elo_ratings
-                    #print(model_elo_ratings)
-                    lower_theshold = model_elo_ratings["latest"] - 300
-                    higher_theshold = model_elo_ratings["latest"] + 300
-                    good_models = {name: rating for name, rating in model_elo_ratings.items() if lower_theshold < rating < higher_theshold}
-                    del good_models['latest']
-                    print(f"Good models: {good_models}")
-                    if len(good_models) > 0:
-                        selected_model = model_selector.choice(list(good_models.keys()))
-                        print(f"Selected model: {selected_model}")
-                        if selected_model in policy_elo_ratings.keys():
-                            game.start_new_game(opponent_policy=selected_model,opponent_first=opponent_first)
+                    print(f"Selecting model at {update}th update")
+                    strategy = strategy_selector.choices(population=["random","best"],weights=[0.2,0.8])[0]
+                    if strategy == "best":
+                        latest_checkpoint_index = int(update/20)
+                        oldest_checkpoint_index = max(0,latest_checkpoint_index-M-1)
+                        #print(f"oldest_checkpoint_index: {oldest_checkpoint_index}, latest_checkpoint_index: {latest_checkpoint_index}")
+                        model_paths = { f"model_{i}" :f"{save_path}_{i}.pth" for i in range(oldest_checkpoint_index,latest_checkpoint_index)}
+                        torch.save(net.state_dict(),f"{save_path}_temp.pth")
+                        #model_paths["latest"] = f"{save_path}_temp.pth"
+                        #print(f"Model paths: {model_paths}")
+                        model_elo_ratings = calculate_elo(model_paths=model_paths,policy_elo_ratings=policy_elo_ratings)
+                        model_elo_ratings = global_top5_models | model_elo_ratings | policy_elo_ratings
+                        writer.add_text("Training/Model_Elo_Ratings", str(model_elo_ratings), update, walltime=time.time())
+                        print(f"Model Elo Ratings: {model_elo_ratings}")
+                        top5_keys = sorted(model_elo_ratings, key=model_elo_ratings.get, reverse=True)[:5]
+                        global_top5_models = {k: model_elo_ratings[k] for k in top5_keys}
+                        print(f"Good models: {global_top5_models}")
+                        writer.add_text("Training/global_top_5", str(global_top5_models), update, walltime=time.time())
+                        if len(global_top5_models) > 0:
+                            selected_model = model_selector.choice(list(global_top5_models.keys()))
+                            print(f"Selected model: {selected_model} with strategy: {strategy}")
+                            writer.add_text("Training/Selected_Model", selected_model, update, walltime=time.time())
+                            if selected_model in policy_elo_ratings.keys():
+                                game.start_new_game(opponent_policy=selected_model,opponent_first=opponent_first)
+                            elif selected_model == "latest":
+                                game.start_new_game(model_path=model_paths[selected_model],opponent_first=opponent_first,opponent_policy="model")
+                            else:
+                                model_index = selected_model.split("_")[1]
+                                game.start_new_game(model_path=f"{save_path}_{model_index}.pth",opponent_first=opponent_first,opponent_policy="model")
                         else:
-                            game.start_new_game(model_path=model_paths[selected_model],opponent_first=opponent_first,opponent_policy="model")
+                            print("Error: No good models found")
+                            os._exit(0)
                     else:
-                        print("Error: No good models found")
-                        os._exit(0)
-                    change_update = update + 50
+                        policy = policy_selector.choice(list(policy_elo_ratings.keys()))
+                        print(f"Selected policy: {policy} with strategy: {strategy}")
+                        game.start_new_game(opponent_policy=policy,opponent_first=opponent_first)
+                    change_update = update + 20
                     model_loadeded_recently = True
                     print(f"Next change scheduled at {change_update}th update")
                 game.start_new_game(opponent_first=opponent_first)
@@ -306,9 +318,9 @@ def start_training(opp,entropy_decay):
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-        if update % 100 == 0:
+        if update % 20 == 0:
             torch.save(net.state_dict(),f"{save_path}.pth") # save as current best
-            torch.save(net.state_dict(),f"{save_path}_{int(update/100)}.pth") # save as checkpoint for future
+            torch.save(net.state_dict(),f"{save_path}_{int(update/20)}.pth") # save as checkpoint for future
         #print(f"update: {update}/{total_updates}")
         #print(f"policy_loss: {policy_loss}, value_loss: {value_loss}, entropy: {entropy}, avg_game_reward: {avg_game_reward}")
 
@@ -385,7 +397,7 @@ def start_new_training(steps,epochs,batch,entropy,name,lr,self,deep,wide,opp,ent
     else:
         net = model.PPOGridNet(grid_size=5)
 
-    optimizer = torch.optim.Adam(net.parameters(), lr=1e-4)
+    optimizer = torch.optim.Adam(net.parameters(), lr=9e-5)
     scheduler_map = {
     "default": torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=updates, eta_min=1e-5),
     "CosineWarmRestarts": torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer,T_0=1000),

@@ -162,9 +162,9 @@ def calculate_elo(model_paths=None, policy_elo_ratings=None, grid_size=5, max_mo
                 matchups.append(((model_name, model_policy), (policy_name, policy)))
         
         # Model vs Model matchups
-        for i, (name1, policy1) in enumerate(model_policies):
-            for name2, policy2 in model_policies[i+1:]:
-                matchups.append(((name1, policy1), (name2, policy2)))
+        # for i, (name1, policy1) in enumerate(model_policies):
+        #     for name2, policy2 in model_policies[i+1:]:
+        #         matchups.append(((name1, policy1), (name2, policy2)))
                 
     else:
         # Play all policies against each other
@@ -241,7 +241,8 @@ if __name__ == "__main__":
         'corner': 1148.6,
         'aggressive': 1070.1,
         'random': 1106.9,
-        'build': 1318.2
+        'build': 1318.2,
+        'gemini': 1500.0
     }
     #policy_elo_ratings = calculate_elo()
     print(policy_elo_ratings)

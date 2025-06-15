@@ -198,6 +198,6 @@ if __name__ == "__main__":
         max_moves=100,
         games_per_matchup=100,
         k_factor=32,
-        ppo_model_path="PPOnet/chain_reaction_A.pth"
+        ppo_model_path="PPOnet/chain_reaction_against_policies_temp.pth"
     )
     tournament.run_tournament() 

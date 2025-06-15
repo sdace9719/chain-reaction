@@ -6,18 +6,20 @@ import os # For path checking
 import sys # For exiting
 
 # Import or define the environment class (assuming similar to chainreaction_env_pponet.py)
-import chainreaction_env_mixed_opponent as game
+from chainreaction_env_headless import ChainReactionHeadless
 import chainreaction_env as randomgame
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 #game.start_new_game(opponent_model_path="PPOnet/chain_reaction_D.pth",opponent_device=device,opponent_strategy_weights={"random": 1.0})
-game = randomgame
-game.start_new_game()
+#game = randomgame
+opponent_first = False
+game = ChainReactionHeadless()
+game.start_new_game(opponent_policy="gemini",opponent_first=opponent_first)
 games = 0
 done = False
 ep_steps = 0
-net = model.PPOGridNet(grid_size=5,load_weights="PPOnet/chain_reaction_baseline2.pth",eval_mode=True)
+net = model.PPOGridNet(grid_size=5,load_weights="PPOnet/chain_reaction_against_policies2_296.pth",eval_mode=True)
 #net = model.PPOGridNet_deep_fc(grid_size=5,load_weights="PPOnet/chain_reaction_baseline.pth",eval_mode=True)
 wins = 0
 while not done:
@@ -28,7 +30,7 @@ while not done:
         ep_steps = 0
         if game.get_winner() == 0:
             wins += 1
-        game.start_new_game()  
+        game.start_new_game(opponent_first=opponent_first)  
     obs = game.get_state()
     m = game.valid_moves_mask()
     valid_mask = torch.tensor(m, dtype=torch.bool, device=device)

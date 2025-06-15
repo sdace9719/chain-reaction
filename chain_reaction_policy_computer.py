@@ -168,7 +168,7 @@ if __name__ == "__main__":
     game = ChainReactionPolicyComputer(
         grid_size=5,
         opponent_model_path='PPOnet/chain_reaction_A.pth',
-        opponent_policy='gemini',  # can be: 'critical', 'defensive', 'corner', 'aggressive', 'random', 'build', 'validation'
+        opponent_policy='critical',  # can be: 'critical', 'defensive', 'corner', 'aggressive', 'random', 'build', 'validation'
         opponent_first=False # set to True to let opponent move first
     )
     game.run() 
