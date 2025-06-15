@@ -62,7 +62,8 @@ The model demonstrates strong performance across different opponent types:
 
 ### Training Metrics
 
-[Note: Tensorboard screenshots to be added here]
+![image](https://github.com/user-attachments/assets/2773e1c5-ec5e-4547-bcd9-e6fd41061255)
+
 
 The model was trained on a 5x5 grid but the convolutional weights can be reused for larger grid sizes, making it adaptable to different game configurations.
 
