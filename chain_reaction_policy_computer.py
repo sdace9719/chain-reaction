@@ -78,8 +78,8 @@ class ChainReactionPolicyComputer:
         if 0 <= row < self.grid_size and 0 <= col < self.grid_size:
             action_idx = row * self.grid_size + col
             valid_moves = self.game_env.valid_moves_mask()
-            print(self.game_env.get_state())
-            print(valid_moves)
+            # print(self.game_env.get_state())
+            # print(valid_moves)
             
             if valid_moves[action_idx]:
                 state, reward = self.game_env.step(action_idx)
@@ -167,7 +167,7 @@ if __name__ == "__main__":
     # Example usage with different policies
     game = ChainReactionPolicyComputer(
         grid_size=5,
-        opponent_model_path='PPOnet/chain_reaction_A.pth',
+        opponent_model_path='PPOnet/chain_reaction_against_polices4_230.pth',
         opponent_policy='critical',  # can be: 'critical', 'defensive', 'corner', 'aggressive', 'random', 'build', 'validation'
         opponent_first=False # set to True to let opponent move first
     )

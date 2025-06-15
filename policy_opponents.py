@@ -700,4 +700,230 @@ class GeminiPolicyV1(PolicyOpponent):
         if empty_cells: return self.rng.choice(empty_cells)
         
         # --- Tier 5: Fallback (Reinforce existing cells or any valid move) ---
-        return self.rng.choice(valid_moves) 
+        return self.rng.choice(valid_moves)
+
+class GrokXPolicy(PolicyOpponent):
+    """
+    A strategic policy for the Chain Reaction game designed to challenge an AI bot.
+    Prioritizes:
+    1. Critical moves that maximize opponent cell captures.
+    2. Blocking opponent's critical moves by triggering own explosions.
+    3. Setting up critical moves (1 atom away) in strategic positions (corners, edges).
+    4. Occupying empty strategic cells (corners, then edges).
+    5. Reinforcing existing cells to approach critical mass.
+    6. Random valid move as fallback.
+    """
+    def __init__(self, grid_size=5):
+        super().__init__(grid_size)
+        self.rng = random.Random()  # Isolated RNG for reproducibility
+
+    def set_game_seed(self, seed):
+        """Set the seed for the current game."""
+        self.rng.seed(seed)
+
+    def get_valid_moves(self, grid, player):
+        """Return list of valid moves for the player."""
+        valid = []
+        for r in range(self.grid_size):
+            for c in range(self.grid_size):
+                cell = grid[r][c]
+                if cell is None or cell[0] == player:
+                    valid.append((r, c))
+        return valid
+
+    def get_max_capacity(self, r, c):
+        """Return max atom capacity for a cell based on its position."""
+        if (r == 0 or r == self.grid_size - 1) and (c == 0 or c == self.grid_size - 1):
+            return 2  # Corner
+        elif (r == 0 or r == self.grid_size - 1) or (c == 0 or c == self.grid_size - 1):
+            return 3  # Edge
+        return 4  # Middle
+
+    def count_captures(self, grid, r, c, player):
+        """Estimate capture potential for a critical move."""
+        opponent_id = 1 - player
+        captures = 0
+        # Check adjacent cells for opponent ownership
+        for dr, dc in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < self.grid_size and 0 <= nc < self.grid_size:
+                cell = grid[nr][nc]
+                if cell and cell[0] == opponent_id:
+                    captures += cell[1]  # Count opponent atoms
+        return captures
+
+    def get_move(self, grid, player, is_new_game=False):
+        """Select the next move based on the strategic policy."""
+        valid_moves = self.get_valid_moves(grid, player)
+        if not valid_moves:
+            return None
+
+        opponent_id = 1 - player
+        corners = [(0, 0), (0, self.grid_size - 1), (self.grid_size - 1, 0), (self.grid_size - 1, self.grid_size - 1)]
+        edges = [(r, c) for r in range(self.grid_size) for c in range(self.grid_size)
+                 if ((r in [0, self.grid_size - 1] and c not in [0, self.grid_size - 1]) or
+                     (c in [0, self.grid_size - 1] and r not in [0, self.grid_size - 1]))]
+
+        # Tier 1: Critical moves that maximize captures
+        critical_moves = []
+        for r, c in valid_moves:
+            cell = grid[r][c]
+            current_atoms = 0 if cell is None else cell[1]
+            if current_atoms + 1 >= self.get_max_capacity(r, c):
+                captures = self.count_captures(grid, r, c, player)
+                critical_moves.append((captures, r, c))
+        if critical_moves:
+            critical_moves.sort(reverse=True)  # Sort by captures (descending)
+            return (critical_moves[0][1], critical_moves[0][2])
+
+        # Tier 2: Block opponent's critical moves
+        opponent_critical = []
+        for r, c in [(i, j) for i in range(self.grid_size) for j in range(self.grid_size)]:
+            cell = grid[r][c]
+            if cell and cell[0] == opponent_id and cell[1] + 1 >= self.get_max_capacity(r, c):
+                opponent_critical.append((r, c))
+        if opponent_critical:
+            blocking_moves = []
+            for r, c in valid_moves:
+                cell = grid[r][c]
+                current_atoms = 0 if cell is None else cell[1]
+                if current_atoms + 1 >= self.get_max_capacity(r, c):
+                    for opp_r, opp_c in opponent_critical:
+                        if abs(r - opp_r) + abs(c - opp_c) == 1:
+                            blocking_moves.append((r, c))
+            if blocking_moves:
+                return self.rng.choice(blocking_moves)
+
+        # Tier 3: Setup moves (1 away from critical) in strategic positions
+        setup_moves = []
+        for r, c in valid_moves:
+            cell = grid[r][c]
+            current_atoms = 0 if cell is None else cell[1]
+            if current_atoms + 1 == self.get_max_capacity(r, c) - 1:
+                score = 3 if (r, c) in corners else 2 if (r, c) in edges else 1
+                setup_moves.append((score, r, c))
+        if setup_moves:
+            setup_moves.sort(reverse=True)  # Prioritize corners, then edges
+            return (setup_moves[0][1], setup_moves[0][2])
+
+        # Tier 4: Occupy empty strategic cells
+        empty_corners = [m for m in valid_moves if m in corners and grid[m[0]][m[1]] is None]
+        if empty_corners:
+            return self.rng.choice(empty_corners)
+        empty_edges = [m for m in valid_moves if m in edges and grid[m[0]][m[1]] is None]
+        if empty_edges:
+            return self.rng.choice(empty_edges)
+        empty_cells = [m for m in valid_moves if grid[m[0]][m[1]] is None]
+        if empty_cells:
+            return self.rng.choice(empty_cells)
+
+        # Tier 5: Reinforce existing cells
+        reinforce_moves = []
+        for r, c in valid_moves:
+            cell = grid[r][c]
+            if cell and cell[0] == player:
+                atoms = cell[1]
+                max_cap = self.get_max_capacity(r, c)
+                score = atoms / max_cap  # Prefer cells closer to critical
+                reinforce_moves.append((score, r, c))
+        if reinforce_moves:
+            reinforce_moves.sort(reverse=True)
+            return (reinforce_moves[0][1], reinforce_moves[0][2])
+
+        # Tier 6: Fallback to random valid move
+        return self.rng.choice(valid_moves)
+
+class TrapAndCascadePolicy(PolicyOpponent):
+    """
+    A deceptive, trap-setting policy that simulates defensive play early
+    and pivots into aggressive chain-explosion traps.
+    
+    Phase 1 (Setup Phase, < 10 atoms):
+        - Prefer empty corners/edges for defensive stacking.
+        - Avoid clustering near opponents unless forced.
+        
+    Phase 2 (Trap Phase, 10-20 atoms):
+        - Focus on cells one-away from critical (bait explosions).
+        - Set up potential multi-directional chain reactions.
+        - Try to be adjacent to multiple opponent setups without triggering yet.
+        
+    Phase 3 (Trigger Phase, >= 20 atoms):
+        - Aggressively explode high-potential traps.
+        - Maximize capture using explosion proximity and chain potential.
+    """
+    def __init__(self, grid_size=5):
+        super().__init__(grid_size)
+        self.rng = random.Random()
+
+    def count_owned_atoms(self, grid, player):
+        return sum(cell[1] for row in grid for cell in row if cell and cell[0] == player)
+
+    def get_adjacent_opponents(self, grid, r, c, player):
+        opponent = 1 - player
+        count = 0
+        for dr, dc in [(0,1), (1,0), (0,-1), (-1,0)]:
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < self.grid_size and 0 <= nc < self.grid_size:
+                neighbor = grid[nr][nc]
+                if neighbor and neighbor[0] == opponent:
+                    count += 1
+        return count
+
+    def get_move(self, grid, player, is_new_game=False):
+        total_atoms = self.count_owned_atoms(grid, player)
+        phase = (
+            "setup" if total_atoms < 10 else
+            "trap" if total_atoms < 20 else
+            "trigger"
+        )
+
+        candidates = []
+
+        for r in range(self.grid_size):
+            for c in range(self.grid_size):
+                cell = grid[r][c]
+                if cell is None or cell[0] == player:
+                    current_atoms = 0 if cell is None else cell[1]
+                    max_cap = self.get_max_capacity(r, c)
+                    moves_to_critical = max_cap - (current_atoms + 1)
+                    adj_opponents = self.get_adjacent_opponents(grid, r, c, player)
+
+                    score = 0
+
+                    if phase == "setup":
+                        # Favor corners, avoid opponents
+                        if (r, c) in [(0,0), (0,4), (4,0), (4,4)]:
+                            score += 100
+                        elif r in [0, 4] or c in [0, 4]:
+                            score += 80
+                        score -= 20 * adj_opponents
+                        score += 10 * current_atoms
+                    
+                    elif phase == "trap":
+                        # Prefer near-critical surrounded cells
+                        if moves_to_critical == 1 and adj_opponents >= 2:
+                            score += 200
+                        elif moves_to_critical == 1:
+                            score += 150
+                        elif current_atoms > 0:
+                            score += 20 * current_atoms
+                        score += 10 * adj_opponents
+
+                    elif phase == "trigger":
+                        # Explode if you can, otherwise prepare more traps
+                        if current_atoms + 1 >= max_cap:
+                            score += 300 + 50 * adj_opponents
+                        elif moves_to_critical == 1:
+                            score += 150 + 20 * adj_opponents
+                        else:
+                            score += 10 * current_atoms + 5 * adj_opponents
+                    
+                    candidates.append((score, r, c))
+        
+        if not candidates:
+            return None
+
+        candidates.sort(reverse=True)
+        top_score = candidates[0][0]
+        best_moves = [(r, c) for score, r, c in candidates if score == top_score]
+        return self.rng.choice(best_moves)

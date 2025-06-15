@@ -10,7 +10,9 @@ from policy_opponents import (
     PolicyOpponent,
     ValidationSeededPolicy,
     BuildAndExplodePolicy,
-    GeminiPolicyV1
+    GeminiPolicyV1,
+    GrokXPolicy,
+    TrapAndCascadePolicy
 )
 #import chainreaction_env_policy as cr_env
 #from chainreaction_env_policy import ChainReactionEnv
@@ -134,7 +136,9 @@ def calculate_elo(model_paths=None, policy_elo_ratings=None, grid_size=5, max_mo
         ("aggressive", AggressivePolicy(grid_size)),
         ("random", ValidationSeededPolicy(grid_size)),
         ("build", BuildAndExplodePolicy(grid_size)),
-        ("gemini", GeminiPolicyV1(grid_size))
+        ("gemini", GeminiPolicyV1(grid_size)),
+        ("grokX", GrokXPolicy(grid_size)),
+        ("trap", TrapAndCascadePolicy(grid_size))
     ]
     
     # If we're calculating ELO for models, we need the policy ratings
@@ -236,6 +240,8 @@ if __name__ == "__main__":
     print("Calculating ELO for all policies:")
     
     policy_elo_ratings = {
+        'grokX': 1500.0,
+        'trap': 1500.0,
         'critical': 1150.2,
         'defensive': 1122.2,
         'corner': 1148.6,
@@ -250,7 +256,7 @@ if __name__ == "__main__":
     # Calculate ELO for specific models against policies
     print("\nCalculating ELO for specific models:")
     model_paths = {
-        "ModelA": "PPOnet/chain_reaction_A.pth"
+        "ModelA": "PPOnet/chain_reaction_against_policies4_240.pth"
     }
     model_elo_ratings = calculate_elo(
         model_paths=model_paths,
